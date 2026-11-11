@@ -122,12 +122,24 @@ try {
  await db.exec('reset role; set role anon');
  await assert.rejects(()=>db.query('select * from public.cases'),/permission denied/);
  await assert.rejects(()=>db.query('select public.create_relay_workspace()'),/permission denied/);
+ await assert.rejects(()=>db.query("select public.relay_create_manual_case('a','b','c')"),/permission denied/);
  await assert.rejects(()=>db.query("select public.relay_get_approved_draft($1,'Edited draft')",[case1]),/permission denied/);
  await login('00000000-0000-0000-0000-000000000001');
  await assert.rejects(()=>db.query('select public.relay_delete_workspace($1)',[org1]),/External sandbox records require cleanup/);
  await login('00000000-0000-0000-0000-000000000002');
  const org2=(await db.query('select public.create_relay_workspace() as id')).rows[0].id;
  assert.notEqual(org1,org2);
+ await assert.rejects(()=>db.query("select public.relay_create_manual_case('','subject','message')"),/Invalid request/);
+ const manual=(await db.query("select public.relay_create_manual_case('Manual customer','Manual subject','Manual message') as id")).rows[0].id;
+ assert.equal((await db.query('select source_kind from public.cases where id=$1',[manual])).rows[0].source_kind,'manual');
+ assert.equal((await db.query("select * from public.audit_events where case_id=$1 and event_type='manual_case_created'",[manual])).rows.length,1);
+ const manualAction=(await db.query("select public.relay_propose_status($1,'pending') as id",[manual])).rows[0].id;
+ await db.query("select public.relay_approve_status($1,'open','pending')",[manualAction]);
+ await assert.rejects(()=>db.query('select public.relay_prepare_external_dispatch($1)',[manualAction]),/Only synthetic/);
+ await login('00000000-0000-0000-0000-000000000001');
+ assert.equal((await db.query('select * from public.cases where id=$1',[manual])).rows.length,0);
+ await login('00000000-0000-0000-0000-000000000002');
+
  assert.equal((await db.query("select public.relay_get_approved_draft($1,'Edited draft') as draft",[case1])).rows[0].draft,null);
  assert.equal((await db.query('select * from public.knowledge_audit_events where document_id=$1',[documentId])).rows.length,0);
  await assert.rejects(()=>db.query('select public.relay_replace_knowledge($1,$2,$3::jsonb)',[documentId,'x',JSON.stringify([{section:'x',content:'x'}])]),/Document unavailable/);
@@ -203,6 +215,7 @@ try {
  await db.exec('set role authenticated');
  await db.exec("reset role; update public.memberships set role='viewer' where user_id='00000000-0000-0000-0000-000000000002'; set role authenticated;");
  const viewerCase=(await db.query('select id from public.cases limit 1')).rows[0].id;
+ await assert.rejects(()=>db.query("select public.relay_create_manual_case('a','b','c')"),/Workspace access required/);
  assert.equal((await db.query("select public.relay_get_approved_draft($1,'Synthetic draft') as draft",[case2])).rows[0].draft,null);
  await assert.rejects(()=>db.query("select public.relay_propose_status($1,'pending')",[viewerCase]),/Case unavailable/);
  await assert.rejects(()=>db.query('select public.relay_reserve_analysis($1)',[viewerCase]),/Case unavailable/);
