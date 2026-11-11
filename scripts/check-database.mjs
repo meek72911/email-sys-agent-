@@ -124,6 +124,7 @@ try {
  await assert.rejects(()=>db.query('select public.create_relay_workspace()'),/permission denied/);
  await assert.rejects(()=>db.query("select public.relay_create_manual_case('a','b','c')"),/permission denied/);
  await assert.rejects(()=>db.query("select * from public.relay_search_cases('',0)"),/permission denied/);
+ await assert.rejects(()=>db.query('select public.relay_delete_request($1)',[case1]),/permission denied/);
  await assert.rejects(()=>db.query("select public.relay_get_approved_draft($1,'Edited draft')",[case1]),/permission denied/);
  await login('00000000-0000-0000-0000-000000000001');
  await assert.rejects(()=>db.query('select public.relay_delete_workspace($1)',[org1]),/External sandbox records require cleanup/);
@@ -143,6 +144,7 @@ try {
  await assert.rejects(()=>db.query('select public.relay_prepare_external_dispatch($1)',[manualAction]),/Only synthetic/);
  await login('00000000-0000-0000-0000-000000000001');
  assert.equal((await db.query('select * from public.cases where id=$1',[manual])).rows.length,0);
+ await assert.rejects(()=>db.query('select public.relay_delete_request($1)',[manual]),/Request unavailable/);
  assert.equal((await db.query("select * from public.relay_search_cases('Manual message',0)")).rows.length,0);
  await login('00000000-0000-0000-0000-000000000002');
 
@@ -175,6 +177,14 @@ try {
  const imported=(await db.query("select public.relay_import_selected_gmail($1,$2,'msg1','subject','sender','body') as id",[org2,'00000000-0000-0000-0000-000000000002'])).rows[0].id;
  assert.equal((await db.query("select public.relay_import_selected_gmail($1,$2,'msg1','subject','sender','body') as id",[org2,'00000000-0000-0000-0000-000000000002'])).rows[0].id,imported);
  await login('00000000-0000-0000-0000-000000000002');
+ await db.query("select public.relay_select_gmail_message($1,'delmsg')",[org2]);
+ await db.exec('reset role; set role service_role');
+ const deletableImport=(await db.query("select public.relay_import_selected_gmail($1,$2,'delmsg','Private subject','sender','Private body') as id",[org2,'00000000-0000-0000-0000-000000000002'])).rows[0].id;
+ await login('00000000-0000-0000-0000-000000000002');
+ await db.query('select public.relay_delete_request($1)',[deletableImport]);
+ assert.equal((await db.query('select * from public.cases where id=$1',[deletableImport])).rows.length,0);
+ assert.equal((await db.query("select * from public.workspace_audit_events where org_id=$1 and source_kind='gmail'",[org2])).rows.length,1);
+ assert.equal((await db.query('select public.relay_gmail_status($1) as status',[org2])).rows[0].status,'active');
  const gmailAction=(await db.query("select public.relay_propose_status($1,'pending') as id",[imported])).rows[0].id;
  await db.query("select public.relay_approve_status($1,'open','pending')",[gmailAction]);
  await assert.rejects(()=>db.query('select public.relay_prepare_external_dispatch($1)',[gmailAction]),/Only synthetic/);
@@ -222,6 +232,7 @@ try {
  await db.exec('set role authenticated');
  await db.exec("reset role; update public.memberships set role='viewer' where user_id='00000000-0000-0000-0000-000000000002'; set role authenticated;");
  const viewerCase=(await db.query('select id from public.cases limit 1')).rows[0].id;
+ await assert.rejects(()=>db.query('select public.relay_delete_request($1)',[manual]),/Request unavailable/);
  await assert.rejects(()=>db.query("select public.relay_create_manual_case('a','b','c')"),/Workspace access required/);
  assert.equal((await db.query("select public.relay_get_approved_draft($1,'Synthetic draft') as draft",[case2])).rows[0].draft,null);
  await assert.rejects(()=>db.query("select public.relay_propose_status($1,'pending')",[viewerCase]),/Case unavailable/);
@@ -233,11 +244,20 @@ try {
  await assert.rejects(()=>db.query('select public.relay_replace_knowledge($1,$2,$3::jsonb)',[documentId,'x',JSON.stringify([{section:'x',content:'x'}])]),/Owner access required/);
  await db.exec("reset role; update public.memberships set role='owner' where user_id='00000000-0000-0000-0000-000000000002'; set role authenticated;");
  await assert.rejects(()=>db.query('select public.relay_delete_workspace($1)',[org1]),/Owner access required/);
+ const syntheticCase=(await db.query("select id from public.cases where source_kind='synthetic' limit 1")).rows[0].id;
+ await assert.rejects(()=>db.query('select public.relay_delete_request($1)',[syntheticCase]),/Only manual or imported/);
+ await db.query('select public.relay_delete_request($1)',[manual]);
+ assert.equal((await db.query('select * from public.cases where id=$1',[manual])).rows.length,0);
+ assert.equal((await db.query('select * from public.crm_actions where id=$1',[manualAction])).rows.length,0);
+ assert.equal((await db.query('select * from public.audit_events where case_id=$1',[manual])).rows.length,0);
+ assert.equal((await db.query("select * from public.workspace_audit_events where org_id=$1 and event_type='request_deleted' and source_kind='manual'",[org2])).rows.length,1);
+ await assert.rejects(()=>db.query('delete from public.workspace_audit_events where org_id=$1',[org2]),/permission denied/);
+
  await db.query('select public.relay_add_knowledge($1,$2::jsonb)',['Deletion audit test',JSON.stringify([{section:'Test',content:'Synthetic'}])]);
  assert.equal((await db.query('select * from public.knowledge_audit_events where org_id=$1',[org2])).rows.length,1);
  await db.query('select public.relay_delete_workspace($1)',[org2]);
  await db.exec('reset role');
- for(const table of ['organizations','memberships','cases','knowledge_documents','crm_actions','audit_events','analysis_usage','action_jobs','external_dispatches','gmail_credentials','gmail_oauth_attempts','gmail_selections','knowledge_audit_events']){
+ for(const table of ['organizations','memberships','cases','knowledge_documents','crm_actions','audit_events','analysis_usage','action_jobs','external_dispatches','gmail_credentials','gmail_oauth_attempts','gmail_selections','knowledge_audit_events','workspace_audit_events']){
   const column=table==='organizations'?'id':'org_id';assert.equal((await db.query('select count(*)::int as n from public.'+table+' where '+column+'=$1',[org2])).rows[0].n,0,table+' retained deleted workspace rows');
  }
  assert.equal((await db.query("select count(*)::int as n from auth.users where id='00000000-0000-0000-0000-000000000002'")).rows[0].n,1);

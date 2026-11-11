@@ -45,6 +45,13 @@ export async function getApprovedDraft(caseId:string,expected:string):Promise<{o
  if(error||typeof data!=='string'||data!==expected)return {ok:false};
  return {ok:true,draft:data};
 }
+export async function deleteRequest(form:FormData){
+ const id=z.uuid().safeParse(form.get('caseId'));if(!id.success)redirect('/workspace?error=Invalid%20request');
+ if(form.get('confirmation')!=='DELETE')back(id.data,'Type DELETE to confirm deletion.');
+ const client=await clientForUser();const {error}=await client.rpc('relay_delete_request',{p_case:id.data});
+ if(error)back(id.data,'Could not delete the request. Check owner access and whether external work needs reconciliation.');
+ revalidatePath('/workspace');revalidatePath('/activity');redirect('/workspace?deleted=request');
+}
 export async function propose(form: FormData) {
   const caseId=String(form.get('caseId') ?? ''); const status=String(form.get('status') ?? '');
   const client=await clientForUser();
