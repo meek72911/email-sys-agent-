@@ -24,7 +24,7 @@ The separate synthetic CRM is a local test service. The Inngest path, Gmail OAut
 1. Install Node.js 22.13 or later and run `npm ci` in the project directory.
 2. Run `npm run lint`, `npm test`, `npm run test:db`, and `npm run build`.
 3. Install a Playwright Chromium browser with `npx playwright install chromium`; then run `npm run test:e2e:mock`. This uses a synthetic local backend, not a real Supabase instance.
-4. Run `npm audit --omit=dev --audit-level=high`. The current install reports moderate advisories and no high findings, using an Inngest-scoped Zod override outside its declared range. A local Dev Server synthetic execution and duplicate-event check passed; keep durable jobs disabled until hosted compatibility and recovery are verified.
+4. Run `npm audit --omit=dev --audit-level=high`. The current install reports moderate advisories and no high findings, using an Inngest-scoped Zod override outside its declared range. Local Dev Server synthetic execution, duplicate-event suppression, and recovery from one simulated RPC 503 passed; keep durable jobs disabled until hosted compatibility and recovery are verified.
 5. `npm run eval:baseline` evaluates the deterministic keyword baseline; it is not an AI quality or customer-outcome measurement. The paid live evaluation is separately guarded and should use only synthetic fixtures.
 
 ## Hosted setup and recovery
