@@ -40,13 +40,10 @@ export async function rejectDraft(form:FormData){return reviewSavedDraft(form,'r
 /** Fetch again immediately before copying so a stale page cannot export an old approval. */
 export async function getApprovedDraft(caseId:string,expected:string):Promise<{ok:true;draft:string}|{ok:false}>{
  const id=z.uuid().safeParse(caseId);if(!id.success||typeof expected!=='string'||!expected.trim()||expected.length>5000)return {ok:false};
- const client=await clientForUser();const {data:{user},error:authError}=await client.auth.getUser();if(authError||!user)return {ok:false};
- const {data:membership,error:memberError}=await client.from('memberships').select('org_id,role').eq('user_id',user.id).maybeSingle();
- if(memberError||!membership||!['owner','operator'].includes(membership.role))return {ok:false};
- const {data:record,error}=await client.from('cases').select('draft,draft_review_state,draft_review_revision,organizations(knowledge_revision)').eq('id',id.data).eq('org_id',membership.org_id).maybeSingle();
- if(error||!record)return {ok:false};const org=Array.isArray(record.organizations)?record.organizations[0]:record.organizations;
- if(record.draft!==expected||record.draft_review_state!=='approved'||typeof org?.knowledge_revision!=='number'||record.draft_review_revision!==org.knowledge_revision)return {ok:false};
- return {ok:true,draft:record.draft};
+ const client=await clientForUser();
+ const {data,error}=await client.rpc('relay_get_approved_draft',{p_case:id.data,p_expected:expected});
+ if(error||typeof data!=='string'||data!==expected)return {ok:false};
+ return {ok:true,draft:data};
 }
 export async function propose(form: FormData) {
   const caseId=String(form.get('caseId') ?? ''); const status=String(form.get('status') ?? '');

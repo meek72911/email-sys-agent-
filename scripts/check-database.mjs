@@ -19,12 +19,17 @@ try {
  await assert.rejects(()=>db.query("select public.relay_review_draft($1,'different','approved')",[case1]),/Draft changed/);
  await db.query("select public.relay_review_draft($1,'First draft','approved')",[case1]);
  assert.equal((await db.query('select draft_review_state from public.cases where id=$1',[case1])).rows[0].draft_review_state,'approved');
+ assert.equal((await db.query("select public.relay_get_approved_draft($1,'First draft') as draft",[case1])).rows[0].draft,'First draft');
+ assert.equal((await db.query("select public.relay_get_approved_draft($1,'different') as draft",[case1])).rows[0].draft,null);
  await db.query('select public.relay_save_draft($1,$2)',[case1,'Edited draft']);
  assert.equal((await db.query('select draft_review_state from public.cases where id=$1',[case1])).rows[0].draft_review_state,'unreviewed');
+ assert.equal((await db.query("select public.relay_get_approved_draft($1,'Edited draft') as draft",[case1])).rows[0].draft,null);
  await db.query("select public.relay_review_draft($1,'Edited draft','rejected')",[case1]);
  assert.equal((await db.query("select * from public.audit_events where case_id=$1 and event_type='draft_rejected'",[case1])).rows.length,1);
+ await db.query("select public.relay_review_draft($1,'Edited draft','approved')",[case1]);
  await db.query('select public.relay_add_knowledge($1,$2::jsonb)',['Fixture policy',JSON.stringify([{section:'Page 1',content:'Old billing rule'},{section:'Page 2',content:'Old access rule'}])]);
  assert.equal((await db.query('select c.draft_review_revision<o.knowledge_revision as stale from public.cases c join public.organizations o on o.id=c.org_id where c.id=$1',[case1])).rows[0].stale,true);
+ assert.equal((await db.query("select public.relay_get_approved_draft($1,'Edited draft') as draft",[case1])).rows[0].draft,null);
  const docs=(await db.query("select document_id,version,content from public.knowledge_documents where title='Fixture policy' order by section")).rows;
  assert.equal(docs.length,2);assert.equal(docs[0].document_id,docs[1].document_id);const documentId=docs[0].document_id;
  assert.equal((await db.query("select * from public.knowledge_audit_events where document_id=$1 and event_type='knowledge_added' and version=1",[documentId])).rows.length,1);
@@ -117,11 +122,13 @@ try {
  await db.exec('reset role; set role anon');
  await assert.rejects(()=>db.query('select * from public.cases'),/permission denied/);
  await assert.rejects(()=>db.query('select public.create_relay_workspace()'),/permission denied/);
+ await assert.rejects(()=>db.query("select public.relay_get_approved_draft($1,'Edited draft')",[case1]),/permission denied/);
  await login('00000000-0000-0000-0000-000000000001');
  await assert.rejects(()=>db.query('select public.relay_delete_workspace($1)',[org1]),/External sandbox records require cleanup/);
  await login('00000000-0000-0000-0000-000000000002');
  const org2=(await db.query('select public.create_relay_workspace() as id')).rows[0].id;
  assert.notEqual(org1,org2);
+ assert.equal((await db.query("select public.relay_get_approved_draft($1,'Edited draft') as draft",[case1])).rows[0].draft,null);
  assert.equal((await db.query('select * from public.knowledge_audit_events where document_id=$1',[documentId])).rows.length,0);
  await assert.rejects(()=>db.query('select public.relay_replace_knowledge($1,$2,$3::jsonb)',[documentId,'x',JSON.stringify([{section:'x',content:'x'}])]),/Document unavailable/);
  await assert.rejects(()=>db.query('select public.relay_reserve_analysis($1)',[case1]),/Case unavailable/);
@@ -183,6 +190,8 @@ try {
  assert.equal((await db.query('select public.relay_gmail_status($1) as status',[org2])).rows[0].status,'disconnected');
  const case2=(await db.query('select id from public.cases limit 1')).rows[0].id;
  await db.query('select public.relay_save_draft($1,$2)',[case2,'Synthetic draft']);
+ await db.query("select public.relay_review_draft($1,'Synthetic draft','approved')",[case2]);
+ assert.equal((await db.query("select public.relay_get_approved_draft($1,'Synthetic draft') as draft",[case2])).rows[0].draft,'Synthetic draft');
  const ownedAction=(await db.query("select public.relay_propose_status($1,'pending') as id",[case2])).rows[0].id;
  await db.query("select public.relay_approve_status($1,'open','pending')",[ownedAction]);
  await db.query('select public.relay_enqueue_action($1)',[ownedAction]);
@@ -194,6 +203,7 @@ try {
  await db.exec('set role authenticated');
  await db.exec("reset role; update public.memberships set role='viewer' where user_id='00000000-0000-0000-0000-000000000002'; set role authenticated;");
  const viewerCase=(await db.query('select id from public.cases limit 1')).rows[0].id;
+ assert.equal((await db.query("select public.relay_get_approved_draft($1,'Synthetic draft') as draft",[case2])).rows[0].draft,null);
  await assert.rejects(()=>db.query("select public.relay_propose_status($1,'pending')",[viewerCase]),/Case unavailable/);
  await assert.rejects(()=>db.query('select public.relay_reserve_analysis($1)',[viewerCase]),/Case unavailable/);
  await assert.rejects(()=>db.query('select public.relay_save_draft($1,$2)',[viewerCase,'test']),/Case unavailable/);
