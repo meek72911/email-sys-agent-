@@ -1,0 +1,73 @@
+{
+  "datasetVersion": 1,
+  "datasetCases": 50,
+  "method": "Deterministic keyword baseline; other is treated as abstention. No live AI or factual accuracy measured.",
+  "issueCategoryExact": {
+    "correct": 47,
+    "total": 50,
+    "rate": 0.94
+  },
+  "multiIssueExact": {
+    "correct": 11,
+    "total": 12,
+    "rate": 0.9166666666666666
+  },
+  "byGroup": {
+    "single": {
+      "total": 12,
+      "exact": 11
+    },
+    "multi": {
+      "total": 12,
+      "exact": 11
+    },
+    "missing": {
+      "total": 8,
+      "exact": 8
+    },
+    "ambiguous": {
+      "total": 6,
+      "exact": 5
+    },
+    "injection": {
+      "total": 6,
+      "exact": 6
+    },
+    "unsupported": {
+      "total": 6,
+      "exact": 6
+    }
+  },
+  "failures": [
+    {
+      "id": "fixture-009",
+      "group": "single",
+      "expected": [
+        "product"
+      ],
+      "predicted": []
+    },
+    {
+      "id": "fixture-020",
+      "group": "multi",
+      "expected": [
+        "access",
+        "product"
+      ],
+      "predicted": [
+        "access"
+      ]
+    },
+    {
+      "id": "fixture-037",
+      "group": "ambiguous",
+      "expected": [
+        "product"
+      ],
+      "predicted": [
+        "billing",
+        "product"
+      ]
+    }
+  ]
+}

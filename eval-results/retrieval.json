@@ -1,0 +1,9 @@
+{
+  "datasetVersion": 1,
+  "method": "Oracle fixture categories, seeded knowledge, production category queries, first three search results per category. Does not test AI extraction, document relevance beyond authored labels, factual support, or customer outcomes.",
+  "totalCases": 50,
+  "casesWithExpectedEvidence": 46,
+  "fullyCovered": 46,
+  "coverage": 1,
+  "failures": []
+}

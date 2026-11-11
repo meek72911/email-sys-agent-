@@ -1,0 +1,53 @@
+{
+  "name": "relay-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test": "vitest run",
+    "eval:baseline": "node scripts/evaluate-baseline.mjs",
+    "test:db": "node scripts/check-database.mjs",
+    "sandbox": "node sandbox-crm/start.mjs",
+    "eval:live": "tsx scripts/evaluate-live.ts",
+    "test:e2e:mock": "node scripts/e2e-mock.mjs",
+    "eval:retrieval": "tsx scripts/evaluate-retrieval.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^4.0.114",
+    "@modelcontextprotocol/client": "^2.4.0",
+    "@modelcontextprotocol/core": "^2.4.0",
+    "@modelcontextprotocol/server": "^2.4.0",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.119.0",
+    "ai": "^7.0.169",
+    "inngest": "4.26.2",
+    "next": "16.4.6",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "unpdf": "^1.9.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.16",
+    "@playwright/test": "^1.65.0",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.6",
+    "jsdom": "^31.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5",
+    "vitest": "^5.1.0"
+  },
+  "overrides": {
+    "inngest": {
+      "zod": "4.6.7"
+    }
+  }
+}
