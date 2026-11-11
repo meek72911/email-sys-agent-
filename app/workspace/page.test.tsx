@@ -4,12 +4,12 @@ vi.mock('next/server',()=>({connection:async()=>{}}));
 vi.mock('next/navigation',()=>({redirect:()=>{throw Error('redirect');}}));
 vi.mock('@/lib/supabase',()=>({supabase:vi.fn()}));
 vi.mock('@/app/login/actions',()=>({logout:async()=>{}}));
-vi.mock('./actions',()=>({createWorkspace:async()=>{},saveDraft:async()=>{},approveDraft:async()=>{},rejectDraft:async()=>{},deleteRequest:async()=>{},propose:async()=>{},approve:async()=>{},reject:async()=>{},execute:async()=>{},enqueueExecution:async()=>{},queueExternalSandbox:async()=>{},checkExternalSandbox:async()=>{}}));
+vi.mock('./actions',()=>({createWorkspace:async()=>{},saveDraft:async()=>{},approveDraft:async()=>{},rejectDraft:async()=>{},deleteRequest:async()=>{},propose:async()=>{},approve:async()=>{},reject:async()=>{},execute:async()=>{},enqueueExecution:async()=>{},retryExecution:async()=>{},queueExternalSandbox:async()=>{},checkExternalSandbox:async()=>{}}));
 vi.mock('./analysis-actions',()=>({analyzeCase:async()=>({})}));
 import { supabase } from '@/lib/supabase';
 import Workspace from './page';
 const row={id:'00000000-0000-4000-8000-000000000001',customer:'Test',subject:'Invoice',message:'Invoice issue',created_at:'2026-01-01',ticket_status:'open',draft:'Saved',draft_review_state:'unreviewed',draft_review_revision:null,organizations:{knowledge_revision:1},source_kind:'synthetic',expires_at:null};
-function fakeClient(role:string|null,roleError=false,actionState='needs_approval',sourceKind='synthetic'){return {auth:{getUser:async()=>({data:{user:{id:'u',email:'test@example.invalid'}},error:null})},from:(table:string)=>({select:()=>({eq:()=>table==='memberships'?{maybeSingle:async()=>({data:role?{role}:null,error:roleError?{}:null})}:{order:()=>({limit:async()=>({data:table==='crm_actions'?[{id:'a',from_status:'open',to_status:'pending',state:actionState,created_at:'2026-01-01'}]:[],error:null})})},order:()=>({limit:async()=>({data:[{...row,source_kind:sourceKind}],error:null})})})})};}
+function fakeClient(role:string|null,roleError=false,actionState='needs_approval',sourceKind='synthetic',jobState:string|null=null){return {auth:{getUser:async()=>({data:{user:{id:'u',email:'test@example.invalid'}},error:null})},from:(table:string)=>({select:()=>({eq:()=>table==='memberships'?{maybeSingle:async()=>({data:role?{role}:null,error:roleError?{}:null})}:{order:()=>({limit:async()=>({data:table==='crm_actions'?[{id:'a',from_status:'open',to_status:'pending',state:actionState,created_at:'2026-01-01'}]:table==='action_jobs'&&jobState?[{id:'job',action_id:'a',state:jobState,created_at:'2026-01-01'}]:[],error:null})})},order:()=>({limit:async()=>({data:[{...row,source_kind:sourceKind}],error:null})})})})};}
 describe('workspace role presentation',()=>{
  beforeEach(()=>{vi.resetAllMocks();vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL','https://example.invalid');vi.stubEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY','test');});
  afterEach(()=>vi.unstubAllEnvs());
@@ -33,6 +33,14 @@ describe('workspace role presentation',()=>{
   expect(renderToStaticMarkup(await Workspace({searchParams:Promise.resolve({})}))).not.toContain('Type DELETE to confirm');
   vi.mocked(supabase).mockResolvedValue(fakeClient('owner',false,'needs_approval','synthetic') as never);
   expect(renderToStaticMarkup(await Workspace({searchParams:Promise.resolve({})}))).not.toContain('Type DELETE to confirm');
+ });
+ it('offers retry only for an operator with a failed approved job',async()=>{
+  vi.mocked(supabase).mockResolvedValue(fakeClient('operator',false,'approved','synthetic','failed') as never);
+  expect(renderToStaticMarkup(await Workspace({searchParams:Promise.resolve({})}))).toContain('Retry background action');
+  vi.mocked(supabase).mockResolvedValue(fakeClient('viewer',false,'approved','synthetic','failed') as never);
+  expect(renderToStaticMarkup(await Workspace({searchParams:Promise.resolve({})}))).not.toContain('Retry background action');
+  vi.mocked(supabase).mockResolvedValue(fakeClient('operator',false,'approved','synthetic','queued') as never);
+  expect(renderToStaticMarkup(await Workspace({searchParams:Promise.resolve({})}))).not.toContain('Retry background action');
  });
  it('fails closed if role lookup fails',async()=>{
   vi.mocked(supabase).mockResolvedValue(fakeClient(null,true) as never);

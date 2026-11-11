@@ -87,6 +87,15 @@ export async function enqueueExecution(form:FormData) {
   catch {back(caseId,'The job is queued, but dispatch could not be confirmed. Use Queue again to retry dispatch.');}
   back(caseId);
 }
+export async function retryExecution(form:FormData){
+ const caseId=String(form.get('caseId')??'');const job=z.uuid().safeParse(form.get('jobId'));if(!job.success)back(caseId,'Invalid job.');
+ if(!durableJobsEnabled()||!process.env.SUPABASE_SERVICE_ROLE_KEY)back(caseId,'Background execution is not configured.');
+ const client=await clientForUser();const {data:jobId,error}=await client.rpc('relay_retry_action_job',{p_job:job.data});
+ if(error||!jobId)back(caseId,'Retry is unavailable. Check the approval, current ticket and evidence; create a new proposal if they changed.');
+ try{await inngest.send({id:jobId,name:'relay/sandbox.action.queued',data:{jobId}});}
+ catch{back(caseId,'The retry is queued, but dispatch could not be confirmed. Use Queue background execution to retry delivery.');}
+ back(caseId);
+}
 export async function queueExternalSandbox(form:FormData) {
  const caseId=String(form.get('caseId')??'');const action=z.uuid().safeParse(form.get('actionId'));
  if(!action.success)back(caseId,'Invalid action.');
