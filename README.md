@@ -14,6 +14,7 @@ The first migration was applied to the project during development. The subsequen
 
 - Supabase login: manually verified with one user. Cross-organization isolation and roles need full tests.
 - Synthetic inbox: 50 labeled fixtures and an idempotent seed migration are prepared. Migration behavior is checked in a local PGlite database, but the new migration is not applied to Supabase.
+- Search: the inbox filters recent requests; workspace-wide search is paged and respects RLS. The pending migration must be installed and verified on hosted Supabase.
 - Manual intake: owners and operators can add a labeled request (up to 200 per workspace); messages remain until workspace deletion. This is locally tested, requires pending migration 020 and has not been verified on hosted Supabase. Do not use real customer data until release checks pass.
 - Draft and sandbox approval: implemented and tested locally; the hosted migrations and end-to-end path still need verification.
 - Knowledge: full-text search and text/PDF extraction code are present. Upload accepts text-based PDFs and UTF-8 text up to 2 MB; original files are not retained. Migrations and the evidence-revision guard are locally tested using PGlite but have not been applied to hosted Supabase; OCR and original-file retention are not implemented; owner-only document replacement and versioning are implemented in a locally tested pending migration.

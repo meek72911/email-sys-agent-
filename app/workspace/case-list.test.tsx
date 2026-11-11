@@ -7,7 +7,7 @@ afterEach(()=>{cleanup();vi.restoreAllMocks();});
 describe('case list',()=>{
  it('shows manual intake only to operators',()=>{const view=render(<CaseList cases={cases} canWrite={false}/>);expect(screen.queryByRole('link',{name:'Add request'})).toBeNull();view.rerender(<CaseList cases={cases} canWrite={true}/>);expect(screen.getByRole('link',{name:'Add request'})).toBeTruthy();});
  it('filters by message and reports empty results',()=>{
-  render(<CaseList cases={cases} selectedId="one" canWrite={false}/>);const search=screen.getByRole('searchbox',{name:/Search requests/i});
+  render(<CaseList cases={cases} selectedId="one" canWrite={false}/>);const search=screen.getByRole('searchbox',{name:/Filter recent requests/i});
   fireEvent.change(search,{target:{value:'log in'}});expect(screen.getByRole('link',{name:/Ravi/})).toBeTruthy();expect(screen.queryByRole('link',{name:/Ada/})).toBeNull();
   fireEvent.change(search,{target:{value:'nothing matches'}});expect(screen.getByText('No matching requests.')).toBeTruthy();
  });

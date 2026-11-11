@@ -6,6 +6,7 @@ import Analysis from './analysis';
 import CaseList from './case-list';
 import CopyDraft from './copy-draft';
 import { canOperate } from '@/lib/roles';
+import { z } from 'zod';
 import { createWorkspace, saveDraft, approveDraft, rejectDraft, propose, approve, reject, execute, enqueueExecution, queueExternalSandbox, checkExternalSandbox } from './actions';
 type Action = { id:string; from_status:string; to_status:string; state:string; created_at:string };
 type ExternalDispatch = { id:string; state:string; sync_state:string; updated_at:string };
@@ -20,7 +21,9 @@ export default async function Workspace({searchParams}: {searchParams: Promise<{
  const canWrite=!membershipError && canOperate(membership?.role);
  const params=await searchParams;
  const result=await client.from('cases').select('id, customer, subject, message, created_at, ticket_status, draft, draft_review_state, draft_review_revision, organizations(knowledge_revision), source_kind, expires_at').order('created_at',{ascending:false}).limit(50);
- const cases=result.data??[]; const selected=cases.find(c=>c.id===params.case)??cases[0];
+ let cases=result.data??[]; let selected=cases.find(c=>c.id===params.case);
+ if(!selected&&z.uuid().safeParse(params.case).success){const extra=await client.from('cases').select('id, customer, subject, message, created_at, ticket_status, draft, draft_review_state, draft_review_revision, organizations(knowledge_revision), source_kind, expires_at').eq('id',params.case).maybeSingle();if(!extra.error&&extra.data){selected=extra.data;cases=[extra.data,...cases.slice(0,49)];}}
+ selected=selected??cases[0];
  const organization=Array.isArray(selected?.organizations)?selected.organizations[0]:selected?.organizations;
  let actions:Action[]=[]; let events:Event[]=[]; let jobs:Job[]=[]; let external:ExternalDispatch[]=[]; let detailsError=false;
  const evidenceQuery=(params.evidence ?? "").trim().slice(0,200); let evidence:Evidence[]=[]; let evidenceError=false;

@@ -123,6 +123,7 @@ try {
  await assert.rejects(()=>db.query('select * from public.cases'),/permission denied/);
  await assert.rejects(()=>db.query('select public.create_relay_workspace()'),/permission denied/);
  await assert.rejects(()=>db.query("select public.relay_create_manual_case('a','b','c')"),/permission denied/);
+ await assert.rejects(()=>db.query("select * from public.relay_search_cases('',0)"),/permission denied/);
  await assert.rejects(()=>db.query("select public.relay_get_approved_draft($1,'Edited draft')",[case1]),/permission denied/);
  await login('00000000-0000-0000-0000-000000000001');
  await assert.rejects(()=>db.query('select public.relay_delete_workspace($1)',[org1]),/External sandbox records require cleanup/);
@@ -132,12 +133,17 @@ try {
  await assert.rejects(()=>db.query("select public.relay_create_manual_case('','subject','message')"),/Invalid request/);
  const manual=(await db.query("select public.relay_create_manual_case('Manual customer','Manual subject','Manual message') as id")).rows[0].id;
  assert.equal((await db.query('select source_kind from public.cases where id=$1',[manual])).rows[0].source_kind,'manual');
+ assert.equal((await db.query("select * from public.relay_search_cases('Manual message',0)")).rows.length,1);
+ assert.equal((await db.query("select * from public.relay_search_cases('',0)")).rows.length,51);
+ assert.equal((await db.query("select * from public.relay_search_cases('',50)")).rows.length,1);
+ assert.equal((await db.query("select * from public.relay_search_cases(''' OR true --',0)")).rows.length,0);
  assert.equal((await db.query("select * from public.audit_events where case_id=$1 and event_type='manual_case_created'",[manual])).rows.length,1);
  const manualAction=(await db.query("select public.relay_propose_status($1,'pending') as id",[manual])).rows[0].id;
  await db.query("select public.relay_approve_status($1,'open','pending')",[manualAction]);
  await assert.rejects(()=>db.query('select public.relay_prepare_external_dispatch($1)',[manualAction]),/Only synthetic/);
  await login('00000000-0000-0000-0000-000000000001');
  assert.equal((await db.query('select * from public.cases where id=$1',[manual])).rows.length,0);
+ assert.equal((await db.query("select * from public.relay_search_cases('Manual message',0)")).rows.length,0);
  await login('00000000-0000-0000-0000-000000000002');
 
  assert.equal((await db.query("select public.relay_get_approved_draft($1,'Edited draft') as draft",[case1])).rows[0].draft,null);
@@ -175,6 +181,7 @@ try {
  await db.exec('reset role');await db.query("update public.cases set expires_at=now()-interval '1 second' where id=$1",[imported]);
  await login('00000000-0000-0000-0000-000000000002');
  assert.equal((await db.query('select * from public.cases where id=$1',[imported])).rows.length,0);
+ assert.equal((await db.query("select * from public.relay_search_cases('subject',0) where id=$1",[imported])).rows.length,0);
  assert.equal((await db.query('select * from public.crm_actions where id=$1',[gmailAction])).rows.length,0);
  assert.equal((await db.query('select * from public.audit_events where case_id=$1',[imported])).rows.length,0);
  await assert.rejects(()=>db.query('select public.relay_enqueue_action($1)',[gmailAction]),/expired/);

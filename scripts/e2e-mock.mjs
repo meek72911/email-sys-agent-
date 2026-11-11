@@ -13,6 +13,7 @@ const user={id:'00000000-0000-4000-8000-000000000001',email:'test@example.invali
 const caseId='00000000-0000-4000-8000-000000000002',orgId='00000000-0000-4000-8000-000000000003';
 const sample={id:caseId,customer:'Synthetic customer',subject:'Invoice and login',message:'Our invoice is ₹18,500 and login fails.',created_at:'2026-01-01T00:00:00Z',ticket_status:'open',draft:'',draft_review_state:'unreviewed',draft_review_revision:null,organizations:{knowledge_revision:1},source_kind:'synthetic',expires_at:null};
 const second={id:'00000000-0000-4000-8000-000000000004',customer:'Another customer',subject:'Export question',message:'The export is unavailable.',created_at:'2025-12-01T00:00:00Z',ticket_status:'open',draft:'A different saved draft.',draft_review_state:'unreviewed',draft_review_revision:null,organizations:{knowledge_revision:1},source_kind:'synthetic',expires_at:null};
+const older={id:'00000000-0000-4000-8000-000000000099',customer:'Older customer',subject:'Older hidden request',message:'Previous request text',created_at:'2020-01-01T00:00:00Z',ticket_status:'open',draft:'',draft_review_state:'unreviewed',draft_review_revision:null,organizations:{knowledge_revision:1},source_kind:'manual',expires_at:null};
 let actions=[],events=[],manualCases=[];const now=Math.floor(Date.now()/1000);const enc=x=>Buffer.from(JSON.stringify(x)).toString('base64url');const unsigned=enc({alg:'HS256',typ:'JWT'})+'.'+enc({sub:user.id,email:user.email,aud:'authenticated',role:'authenticated',iat:now,exp:now+3600});const jwt=unsigned+'.'+createHmac('sha256','synthetic-test-only-secret').update(unsigned).digest('base64url');
 const json=(res,status,data)=>{res.writeHead(status,{'content-type':'application/json','cache-control':'no-store'});res.end(JSON.stringify(data));};
 async function body(req){let s='';for await(const chunk of req){s+=chunk;if(s.length>20000)throw Error('oversized');}return JSON.parse(s||'{}');}
@@ -24,13 +25,14 @@ const backend=http.createServer(async(req,res)=>{try{
  if(!String(req.headers.authorization??'').includes(jwt))return json(res,401,{message:'unauthorized'});
  if(req.method==='GET'&&path.startsWith('/rest/v1/')){
   const table=path.slice('/rest/v1/'.length);let rows;
-  if(table==='cases')rows=[...manualCases,sample,second];else if(table==='memberships')rows=[{org_id:orgId,user_id:user.id,role:'owner'}];else if(table==='crm_actions')rows=actions;else if(table==='audit_events')rows=events;else if(table==='action_jobs'||table==='external_dispatches')rows=[];else return json(res,404,{message:'unknown table'});
+  if(table==='cases')rows=[...manualCases,sample,second,...(url.searchParams.has('id')?[older]:[])];else if(table==='memberships')rows=[{org_id:orgId,user_id:user.id,role:'owner'}];else if(table==='crm_actions')rows=actions;else if(table==='audit_events')rows=events;else if(table==='action_jobs'||table==='external_dispatches')rows=[];else return json(res,404,{message:'unknown table'});
   const id=url.searchParams.get('id');if(id?.startsWith('eq.'))rows=rows.filter(row=>row.id===id.slice(3));const caseFilter=url.searchParams.get('case_id');if(caseFilter?.startsWith('eq.'))rows=rows.filter(row=>row.case_id===caseFilter.slice(3));
   return json(res,200,rows);
  }
  if(req.method==='POST'&&path.startsWith('/rest/v1/rpc/')){
   const name=path.split('/').at(-1),input=await body(req);let result=null;
-  if(name==='relay_create_manual_case'){const id=randomUUID();manualCases.unshift({id,customer:input.p_customer,subject:input.p_subject,message:input.p_message,source_kind:'manual',expires_at:null,created_at:new Date().toISOString(),ticket_status:'open',draft:'',draft_review_state:'unreviewed',draft_review_revision:null,organizations:{knowledge_revision:1}});result=id;}
+  if(name==='relay_search_cases'){const all=[...manualCases,sample,second,older];const q=String(input.p_query??'').toLowerCase();result=all.filter(c=>[c.customer,c.subject,c.message].some(v=>v.toLowerCase().includes(q))).slice(input.p_offset,input.p_offset+51);}
+  else if(name==='relay_create_manual_case'){const id=randomUUID();manualCases.unshift({id,customer:input.p_customer,subject:input.p_subject,message:input.p_message,source_kind:'manual',expires_at:null,created_at:new Date().toISOString(),ticket_status:'open',draft:'',draft_review_state:'unreviewed',draft_review_revision:null,organizations:{knowledge_revision:1}});result=id;}
   else if(name==='relay_save_draft'){if(sample.draft!==input.p_draft){sample.draft_review_state='unreviewed';sample.draft_review_revision=null;}sample.draft=input.p_draft;events.unshift({id:events.length+1,case_id:caseId,actor_id:user.id,event_type:'draft_saved',created_at:new Date().toISOString()});}
   else if(name==='relay_get_approved_draft'){result=input.p_case===caseId&&input.p_expected===sample.draft&&sample.draft_review_state==='approved'&&sample.draft_review_revision===sample.organizations.knowledge_revision?sample.draft:null;}
   else if(name==='relay_review_draft'){if(input.p_draft!==sample.draft||!['approved','rejected'].includes(input.p_decision))return json(res,400,{message:'draft changed'});sample.draft_review_state=input.p_decision;sample.draft_review_revision=1;events.unshift({id:events.length+1,case_id:caseId,actor_id:user.id,event_type:'draft_'+input.p_decision,created_at:new Date().toISOString()});}
@@ -58,8 +60,8 @@ try{
  await page.goto(base+'/workspace');await page.waitForURL('**/login');
  await page.getByLabel('Email').fill(user.email);await page.getByLabel('Password').fill('synthetic-test-only');await page.getByRole('button',{name:'Sign in'}).click();
  await page.waitForURL('**/workspace');await page.getByRole('heading',{name:'Invoice and login'}).waitFor();await page.getByText('Synthetic request',{exact:false}).waitFor();
- await page.getByLabel('Search requests').fill('login');assert.equal(await page.getByRole('link',{name:/Synthetic customer/}).count(),1);
- await page.getByLabel('Search requests').fill('no match');await page.getByText('No matching requests.').waitFor();await page.getByLabel('Search requests').fill('');
+ await page.getByLabel('Filter recent requests').fill('login');assert.equal(await page.getByRole('link',{name:/Synthetic customer/}).count(),1);
+ await page.getByLabel('Filter recent requests').fill('no match');await page.getByText('No matching requests.').waitFor();await page.getByLabel('Filter recent requests').fill('');
  await page.locator('#draft').fill('We will verify the details.');await page.getByRole('button',{name:'Save draft'}).click();await page.waitForURL('**/workspace?case=*');await page.waitForTimeout(100);
  assert.equal(await page.locator('#draft').inputValue(),'We will verify the details.');
  await page.getByRole('button',{name:'Approve saved draft'}).click();await page.getByText('Review: approved',{exact:false}).waitFor();
@@ -74,9 +76,10 @@ try{
  await page.getByRole('button',{name:'Approve exact change'}).click();await page.getByRole('button',{name:'Execute sandbox change now'}).waitFor();assert.equal(sample.ticket_status,'open');
  await page.getByRole('button',{name:'Execute sandbox change now'}).click();await page.getByText('sandbox ticket updated',{exact:false}).waitFor();assert.equal(sample.ticket_status,'pending');assert.equal(await page.locator('#status').inputValue(),'open');
  await page.getByRole('link',{name:'Add request'}).click();await page.waitForURL('**/cases/new');await page.getByLabel('Customer name or identifier').fill('Manual customer');await page.getByLabel('Subject').fill('Login problem');await page.getByLabel('Customer message').fill('Please help me sign in.');await page.getByRole('button',{name:'Add request'}).click();await page.getByRole('heading',{name:'Login problem'}).waitFor();await page.getByText('Manual request',{exact:false}).waitFor();assert.equal(manualCases.length,1);
+ await page.getByRole('link',{name:'Search all requests'}).click();await page.getByLabel('Search all workspace requests').fill('Older hidden');await page.getByRole('button',{name:'Search',exact:true}).click();await page.getByRole('link',{name:'Open request'}).click();await page.getByRole('heading',{name:'Older hidden request'}).waitFor();
  await page.screenshot({path:join(tempDir,'workspace-desktop.png'),fullPage:true});await page.setViewportSize({width:375,height:812});await page.screenshot({path:join(tempDir,'workspace-mobile.png'),fullPage:true});
  const overflow=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth,offenders:[...document.querySelectorAll('body *')].map(el=>({tag:el.tagName,cls:el.className,right:Math.round(el.getBoundingClientRect().right)})).filter(el=>el.right>innerWidth+1).slice(0,12)}));if(overflow.scroll>overflow.width)console.log('Overflow:',JSON.stringify(overflow));assert.equal(overflow.scroll>overflow.width,false);
- console.log('Passed mock browser workflow: sign-in, search, draft, rejection, proposal, approval, execution, audit, manual intake and mobile overflow.');
+ console.log('Passed mock browser workflow: sign-in, search, draft, rejection, proposal, approval, execution, audit, manual intake, workspace search and mobile overflow.');
  console.log(`Temporary screenshots: ${tempDir}`);
  // Screenshots contain only synthetic data. Set RELAY_KEEP_TEST_SCREENSHOTS=1 to retain them.
 } finally {

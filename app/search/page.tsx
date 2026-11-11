@@ -1,0 +1,11 @@
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
+type Result={id:string;customer:string;subject:string;created_at:string;ticket_status:string;source_kind:string};
+function searchUrl(query:string,page:number){const params=new URLSearchParams();if(query)params.set('q',query);if(page>1)params.set('page',String(page));const suffix=params.toString();return '/search'+(suffix?'?'+suffix:'');}
+export default async function Search({searchParams}:{searchParams:Promise<{q?:string;page?:string}>}){
+ const client=await supabase();const {data:{user},error:authError}=await client.auth.getUser();if(authError||!user)redirect('/login');
+ const params=await searchParams;const query=(typeof params.q==='string'?params.q:'').trim().slice(0,200);const candidate=Number(params.page??'1');const page=Number.isInteger(candidate)&&candidate>=1&&candidate<=201?candidate:1;
+ const result=await client.rpc('relay_search_cases',{p_query:query,p_offset:(page-1)*50});const all=(result.data??[]) as Result[];const rows=all.slice(0,50);const hasMore=all.length>50;const hasNext=hasMore&&page<201;
+ return <main className="content-page"><p><Link href="/workspace">← Inbox</Link></p><h1>Find requests</h1><form method="get"><label htmlFor="q">Search all workspace requests</label><input id="q" name="q" type="search" maxLength={200} defaultValue={query} placeholder="Customer, subject or message"/><button>Search</button></form><p>Search terms may appear in your browser history.</p>{result.error?<p role="alert">Search is unavailable. Check the database connection and migrations.</p>:rows.length?<ol className="activity-list">{rows.map(row=><li key={row.id}><div><strong>{row.subject}</strong><p>{row.customer} · {row.ticket_status} · {row.source_kind==='gmail'?'Gmail import':row.source_kind==='manual'?'Manual request':'Synthetic request'}</p></div><Link href={'/workspace?case='+encodeURIComponent(row.id)}>Open request</Link></li>)}</ol>:<p>No requests found.</p>}<nav aria-label="Search result pages">{page>1&&<Link href={searchUrl(query,page-1)}>Previous page</Link>} {hasNext&&<Link href={searchUrl(query,page+1)}>Next page</Link>}</nav><p>Page {page}</p>{hasMore&&!hasNext&&<p>Refine the search to see more specific results.</p>}</main>;
+}
