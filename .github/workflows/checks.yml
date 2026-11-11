@@ -19,6 +19,7 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run test:db
+      - run: npm run test:bundle
       - run: npm run eval:retrieval
       - run: npm run build
       - run: npx playwright install --with-deps chromium

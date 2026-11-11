@@ -8,7 +8,7 @@ Use Node.js 22.13 or later for the app and the separate local sandbox. Copy `.en
 
 ## Database
 
-The first migration was applied to the project during development. The subsequent migrations add synthetic knowledge and a database-only review workflow. They have not been applied to hosted Supabase; local PGlite tests exercise the migrations. Review and validate them against disposable data before applying. The implementation does not yet meet the PRD release gates; see `CONNECTIONS.md` and `RUNBOOK.md`.
+The first migration was applied to the project during development. The subsequent migrations add synthetic knowledge and a database-only review workflow. They have not been applied to hosted Supabase; local PGlite tests exercise the migrations. Review and validate them against disposable data before applying. A generated transaction bundle for the specific existing-project state is in `supabase/hosted-existing-project.sql`; see `RUNBOOK.md` before use. `npm run db:bundle` regenerates it and `npm run test:bundle` checks it locally. The implementation does not yet meet the PRD release gates; see `CONNECTIONS.md` and `RUNBOOK.md`.
 
 ## Status
 

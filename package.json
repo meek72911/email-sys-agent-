@@ -13,7 +13,9 @@
     "sandbox": "node sandbox-crm/start.mjs",
     "eval:live": "tsx scripts/evaluate-live.ts",
     "test:e2e:mock": "node scripts/e2e-mock.mjs",
-    "eval:retrieval": "tsx scripts/evaluate-retrieval.ts"
+    "eval:retrieval": "tsx scripts/evaluate-retrieval.ts",
+    "db:bundle": "node scripts/build-supabase-bundle.mjs",
+    "test:bundle": "node scripts/build-supabase-bundle.mjs --check && node scripts/check-supabase-bundle.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.114",
