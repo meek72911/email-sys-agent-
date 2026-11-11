@@ -6,9 +6,10 @@ export const extractionSchema = z.strictObject({
     category: z.enum(['billing', 'access', 'product', 'other']),
     summary: z.string().min(1).max(300),
     sourceQuote: z.string().min(1).max(1000),
+    requestedOutcome: z.string().min(1).max(300).nullable(),
   })).max(12),
   claims: z.array(z.strictObject({
-    kind: z.enum(['amount', 'date', 'other']),
+    kind: z.enum(['amount', 'date', 'name', 'identifier', 'other']),
     value: z.string().min(1).max(300),
     sourceQuote: z.string().min(1).max(1000),
   })).max(30),
@@ -38,6 +39,9 @@ export function validateExtraction(input: unknown, originalMessage: string): Ext
     if (!originalMessage.includes(entry.sourceQuote)) {
       throw new Error('Extraction contains a source quote not present in the original message');
     }
+  }
+  for (const issue of result.issues) {
+    if (issue.requestedOutcome !== null && (!issue.requestedOutcome.trim() || !originalMessage.includes(issue.requestedOutcome))) throw new Error('Requested outcome is not present in the original message');
   }
   for (const claim of result.claims) {
     if (!claim.sourceQuote.includes(claim.value)) throw new Error('Claim value is not present in its source quote');

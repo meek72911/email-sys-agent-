@@ -19,18 +19,18 @@ describe('live analysis gate',()=>{
  });
  it('uses the authorized stored message and retrieves evidence in the user session',async()=>{
   const c=client(false);vi.mocked(supabase).mockResolvedValue(c as never);
-  vi.mocked(extractCustomerMessage).mockResolvedValue({issues:[{category:'billing',summary:'Invoice',sourceQuote:'Invoice'}],claims:[{kind:'amount',value:'₹10',sourceQuote:'₹10'}]});
+  vi.mocked(extractCustomerMessage).mockResolvedValue({issues:[{category:'billing',summary:'Invoice',sourceQuote:'Invoice',requestedOutcome:null}],claims:[{kind:'amount',value:'₹10',sourceQuote:'₹10'}]});
   vi.mocked(generateGroundedDraft).mockResolvedValue({sentences:[{text:'We will review.',sourceIds:['00000000-0000-4000-8000-000000000001']}]});
   const result=await analyzeCase({},form());expect(result.draft?.sentences[0].text).toBe('We will review.');expect(extractCustomerMessage).toHaveBeenCalledWith('Invoice ₹10');expect(result.issues?.[0].evidence[0].title).toBe('Policy');expect(result.remaining).toBe(9);
  });
  it('withholds results when knowledge changes during analysis',async()=>{
   vi.mocked(supabase).mockResolvedValue(client(false,[1,2]) as never);
-  vi.mocked(extractCustomerMessage).mockResolvedValue({issues:[{category:'billing',summary:'Invoice',sourceQuote:'Invoice'}],claims:[]});
+  vi.mocked(extractCustomerMessage).mockResolvedValue({issues:[{category:'billing',summary:'Invoice',sourceQuote:'Invoice',requestedOutcome:null}],claims:[]});
   const result=await analyzeCase({},form());expect(result.error).toMatch(/Knowledge changed/);expect(result.issues).toBeUndefined();expect(generateGroundedDraft).not.toHaveBeenCalled();
  });
  it('withholds generated text if knowledge changes during draft generation',async()=>{
   vi.mocked(supabase).mockResolvedValue(client(false,[1,1,2]) as never);
-  vi.mocked(extractCustomerMessage).mockResolvedValue({issues:[{category:'billing',summary:'Invoice',sourceQuote:'Invoice'}],claims:[]});
+  vi.mocked(extractCustomerMessage).mockResolvedValue({issues:[{category:'billing',summary:'Invoice',sourceQuote:'Invoice',requestedOutcome:null}],claims:[]});
   vi.mocked(generateGroundedDraft).mockResolvedValue({sentences:[{text:'Draft',sourceIds:[caseId]}]});
   const result=await analyzeCase({},form());expect(result.error).toMatch(/Knowledge changed/);expect(result.draft).toBeUndefined();
  });

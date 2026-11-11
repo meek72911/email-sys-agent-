@@ -21,7 +21,7 @@ async function main(){
   console.log(`Processed ${cases.length}/${selected.length}`);
  }
  const summary=summarizeEvaluation(cases);
- const report={datasetVersion:data.version,model:process.env.OPENAI_MODEL,generatedAt:new Date().toISOString(),partial:selected.length!==data.fixtures.length,limitations:'Author-created synthetic labels; extraction only. Errors count as non-matches. No draft faithfulness, retrieval, authorization, injection compliance or customer outcomes measured.',summary,cases};
+ const report={datasetVersion:data.version,model:process.env.OPENAI_MODEL,generatedAt:new Date().toISOString(),partial:selected.length!==data.fixtures.length,limitations:'Author-created synthetic labels; extraction only. Errors count as non-matches. Claim matching is limited to amounts and dates; names, identifiers and requested outcomes are not scored. No draft faithfulness, retrieval, authorization, injection compliance or customer outcomes measured.',summary,cases};
  await mkdir('eval-results',{recursive:true});await writeFile('eval-results/live-extraction.json',JSON.stringify(report,null,2)+'\n');
  console.log(`Completed ${summary.total} cases, ${summary.errors} errors; issue sets exact ${summary.issueCategoryExact.correct}/${summary.issueCategoryExact.total}. Results: eval-results/live-extraction.json`);
 }

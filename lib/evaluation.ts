@@ -4,7 +4,7 @@ export type EvalCase={id:string;group:string;expectedCategories:string[];predict
 const normalize=(items:string[])=>[...new Set(items)].sort();
 export function scoreCase(fixture:EvalFixture,result:Extraction|null,latencyMs:number,error?:string):EvalCase{
  const expectedCategories=normalize(fixture.categories),predictedCategories=normalize(result?.issues.map(issue=>issue.category)??[]);
- const expectedClaims=normalize(fixture.expectedClaims.map(claim=>claim.source)),predictedClaims=normalize(result?.claims.map(claim=>claim.value)??[]);
+ const expectedClaims=normalize(fixture.expectedClaims.map(claim=>claim.source)),predictedClaims=normalize(result?.claims.filter(claim=>claim.kind==='amount'||claim.kind==='date').map(claim=>claim.value)??[]);
  const exact=(a:string[],b:string[])=>JSON.stringify(a)===JSON.stringify(b);
  return {id:fixture.id,group:fixture.group,expectedCategories,predictedCategories,expectedClaims,predictedClaims,issueExact:!!result&&exact(expectedCategories,predictedCategories),claimExact:!!result&&exact(expectedClaims,predictedClaims),latencyMs,error};
 }
