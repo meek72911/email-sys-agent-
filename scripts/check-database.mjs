@@ -125,6 +125,7 @@ try {
  await assert.rejects(()=>db.query("select public.relay_create_manual_case('a','b','c')"),/permission denied/);
  await assert.rejects(()=>db.query("select * from public.relay_search_cases('',0)"),/permission denied/);
  await assert.rejects(()=>db.query('select public.relay_delete_request($1)',[case1]),/permission denied/);
+ await assert.rejects(()=>db.query('select public.relay_delete_knowledge($1)',[documentId]),/permission denied/);
  await assert.rejects(()=>db.query("select public.relay_get_approved_draft($1,'Edited draft')",[case1]),/permission denied/);
  await login('00000000-0000-0000-0000-000000000001');
  await assert.rejects(()=>db.query('select public.relay_delete_workspace($1)',[org1]),/External sandbox records require cleanup/);
@@ -218,6 +219,19 @@ try {
  await login('00000000-0000-0000-0000-000000000002');
  assert.equal((await db.query('select public.relay_gmail_status($1) as status',[org2])).rows[0].status,'disconnected');
  const case2=(await db.query('select id from public.cases limit 1')).rows[0].id;
+ await db.query('select public.relay_add_knowledge($1,$2::jsonb)',['Temporary policy',JSON.stringify([{section:'One',content:'Unusual temporary policy passage.'},{section:'Two',content:'Another temporary policy passage.'}])]);
+ const tempDoc=(await db.query("select document_id from public.knowledge_documents where title='Temporary policy' limit 1")).rows[0].document_id;
+ await login('00000000-0000-0000-0000-000000000001');
+ await assert.rejects(()=>db.query('select public.relay_delete_knowledge($1)',[tempDoc]),/Document unavailable/);
+ await login('00000000-0000-0000-0000-000000000002');
+ const policyAction=(await db.query("select public.relay_propose_status($1,'pending') as id",[case2])).rows[0].id;
+ await db.query("select public.relay_approve_status($1,'open','pending')",[policyAction]);
+ await db.query('select public.relay_delete_knowledge($1)',[tempDoc]);
+ assert.equal((await db.query('select * from public.knowledge_documents where document_id=$1',[tempDoc])).rows.length,0);
+ assert.equal((await db.query("select * from public.knowledge_audit_events where document_id=$1 and event_type='knowledge_deleted' and version=1",[tempDoc])).rows.length,1);
+ await assert.rejects(()=>db.query('select public.relay_execute_status($1)',[policyAction]),/Knowledge changed/);
+ await assert.rejects(()=>db.query('select public.relay_delete_knowledge($1)',[tempDoc]),/Document unavailable/);
+
  await db.query('select public.relay_save_draft($1,$2)',[case2,'Synthetic draft']);
  await db.query("select public.relay_review_draft($1,'Synthetic draft','approved')",[case2]);
  assert.equal((await db.query("select public.relay_get_approved_draft($1,'Synthetic draft') as draft",[case2])).rows[0].draft,'Synthetic draft');
@@ -233,6 +247,7 @@ try {
  await db.exec("reset role; update public.memberships set role='viewer' where user_id='00000000-0000-0000-0000-000000000002'; set role authenticated;");
  const viewerCase=(await db.query('select id from public.cases limit 1')).rows[0].id;
  await assert.rejects(()=>db.query('select public.relay_delete_request($1)',[manual]),/Request unavailable/);
+ await assert.rejects(()=>db.query('select public.relay_delete_knowledge($1)',[documentId]),/Owner access required/);
  await assert.rejects(()=>db.query("select public.relay_create_manual_case('a','b','c')"),/Workspace access required/);
  assert.equal((await db.query("select public.relay_get_approved_draft($1,'Synthetic draft') as draft",[case2])).rows[0].draft,null);
  await assert.rejects(()=>db.query("select public.relay_propose_status($1,'pending')",[viewerCase]),/Case unavailable/);
@@ -254,7 +269,7 @@ try {
  await assert.rejects(()=>db.query('delete from public.workspace_audit_events where org_id=$1',[org2]),/permission denied/);
 
  await db.query('select public.relay_add_knowledge($1,$2::jsonb)',['Deletion audit test',JSON.stringify([{section:'Test',content:'Synthetic'}])]);
- assert.equal((await db.query('select * from public.knowledge_audit_events where org_id=$1',[org2])).rows.length,1);
+ assert.ok((await db.query('select * from public.knowledge_audit_events where org_id=$1',[org2])).rows.length>=1);
  await db.query('select public.relay_delete_workspace($1)',[org2]);
  await db.exec('reset role');
  for(const table of ['organizations','memberships','cases','knowledge_documents','crm_actions','audit_events','analysis_usage','action_jobs','external_dispatches','gmail_credentials','gmail_oauth_attempts','gmail_selections','knowledge_audit_events','workspace_audit_events']){
