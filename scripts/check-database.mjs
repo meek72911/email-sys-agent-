@@ -81,6 +81,7 @@ try {
  assert.notEqual(retryJob,revokedJob);
  await assert.rejects(()=>db.query('select public.relay_retry_action_job($1)',[revokedJob]),/already queued/);
  assert.equal((await db.query('select state from public.action_jobs where id=$1',[revokedJob])).rows[0].state,'failed');
+ assert.equal((await db.query('select failure_code from public.action_jobs where id=$1',[revokedJob])).rows[0].failure_code,'authorization_changed');
  await db.exec('reset role; set role service_role');
  assert.equal((await db.query('select public.relay_run_action_job($1) as state',[retryJob])).rows[0].state,'succeeded');
  assert.equal((await db.query('select public.relay_run_action_job($1) as state',[retryJob])).rows[0].state,'succeeded');
@@ -99,6 +100,7 @@ try {
  await login('00000000-0000-0000-0000-000000000001');
  assert.equal((await db.query('select ticket_status from public.cases where id=$1',[fourth])).rows[0].ticket_status,'open');
  await assert.rejects(()=>db.query('select public.relay_retry_action_job($1)',[staleJob]),/Knowledge changed/);
+ assert.equal((await db.query('select failure_code from public.action_jobs where id=$1',[staleJob])).rows[0].failure_code,'knowledge_changed');
  const fifth=(await db.query('select id from public.cases where id<>$1 and id<>$2 and id<>$3 and id<>$4 limit 1',[case1,another,third,fourth])).rows[0].id;
  const external=(await db.query("select public.relay_propose_status($1,'pending') as id",[fifth])).rows[0].id;
  await assert.rejects(()=>db.query('select public.relay_prepare_external_dispatch($1)',[external]),/Approval required/);
@@ -111,6 +113,7 @@ try {
  assert.equal((await db.query('select public.relay_run_action_job($1) as state',[localBeforeExternal])).rows[0].state,'failed');
  await login('00000000-0000-0000-0000-000000000001');
  await assert.rejects(()=>db.query('select public.relay_retry_action_job($1)',[localBeforeExternal]),/External dispatch requires reconciliation/);
+ assert.equal((await db.query('select failure_code from public.action_jobs where id=$1',[localBeforeExternal])).rows[0].failure_code,'external_pending');
  await assert.rejects(()=>db.query('select public.relay_execute_status($1)',[external]),/awaiting a result/);
  await assert.rejects(()=>db.query('select public.relay_execute_status($1)',[competing]),/awaiting a result/);
  await assert.rejects(()=>db.query('select public.relay_prepare_external_dispatch($1)',[competing]),/unique constraint/);
@@ -133,6 +136,19 @@ try {
  assert.equal((await db.query('select sync_state from public.external_dispatches where id=$1',[external])).rows[0].sync_state,'synced');
  await db.exec('set role service_role');
  await login('00000000-0000-0000-0000-000000000001');
+ const sixth=(await db.query('select id from public.cases where id<>$1 and id<>$2 and id<>$3 and id<>$4 and id<>$5 limit 1',[case1,another,third,fourth,fifth])).rows[0].id;
+ const ticketAction=(await db.query("select public.relay_propose_status($1,'pending') as id",[sixth])).rows[0].id;
+ await db.query("select public.relay_approve_status($1,'open','pending')",[ticketAction]);
+ const changedJob=(await db.query('select public.relay_enqueue_action($1) as id',[ticketAction])).rows[0].id;
+ const newerAction=(await db.query("select public.relay_propose_status($1,'resolved') as id",[sixth])).rows[0].id;
+ await db.query("select public.relay_approve_status($1,'open','resolved')",[newerAction]);
+ await db.query('select public.relay_execute_status($1)',[newerAction]);
+ await db.exec('reset role; set role service_role');
+ assert.equal((await db.query('select public.relay_run_action_job($1) as state',[changedJob])).rows[0].state,'failed');
+ await assert.rejects(()=>db.query("select public.relay_finish_failed_local_job($1,'execution_blocked')",[changedJob]),/permission denied/);
+ await login('00000000-0000-0000-0000-000000000001');
+ assert.equal((await db.query('select failure_code from public.action_jobs where id=$1',[changedJob])).rows[0].failure_code,'ticket_changed');
+ await assert.rejects(()=>db.query('select public.relay_retry_action_job($1)',[changedJob]),/Request changed/);
  const stale=(await db.query("select public.relay_propose_status($1,'resolved') as id",[case1])).rows[0].id;
  await db.query('select public.relay_add_knowledge($1,$2::jsonb)',['New policy',JSON.stringify([{section:'Part 1',content:'Synthetic policy for a test.'}])]);
  await assert.rejects(()=>db.query("select public.relay_approve_status($1,'pending','resolved')",[stale]),/Knowledge changed/);
