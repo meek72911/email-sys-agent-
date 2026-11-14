@@ -14,6 +14,7 @@
     "test": "vitest run",
     "eval:baseline": "node scripts/evaluate-baseline.mjs",
     "test:db": "node scripts/check-database.mjs",
+    "verify:hosted": "node --env-file=.env.verify.local scripts/verify-hosted.mjs",
     "sandbox": "node sandbox-crm/start.mjs",
     "eval:live": "tsx scripts/evaluate-live.ts",
     "test:e2e:mock": "node scripts/e2e-mock.mjs",

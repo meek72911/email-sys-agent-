@@ -8,7 +8,7 @@ Use Node.js 22.13 or later for the app and the separate local sandbox. Copy `.en
 
 ## Database
 
-The first migration was applied to the project during development. The subsequent migrations add synthetic knowledge and a database-only review workflow. They have not been applied to hosted Supabase; local PGlite tests exercise the migrations. Review and validate them against disposable data before applying. A generated transaction bundle for the specific existing-project state is in `supabase/hosted-existing-project.sql`; see `RUNBOOK.md` before use. `npm run db:bundle` regenerates it and `npm run test:bundle` checks it locally. The implementation does not yet meet the PRD release gates; see `CONNECTIONS.md` and `RUNBOOK.md`.
+The first migration was applied to the project during development. The subsequent migrations add synthetic knowledge and a database-only review workflow. They have not been applied to hosted Supabase; local PGlite tests exercise the migrations. Review and validate them against disposable data before applying. `supabase/fresh-project.sql` applies all migrations to a new, empty project; `supabase/hosted-existing-project.sql` is only for a project with migration 001 fully applied and no later Relay migration. See `RUNBOOK.md` before use. `npm run db:bundle` regenerates both bundles and `npm run test:bundle` checks them locally. To verify a disposable hosted project, copy `.env.verify.example` to `.env.verify.local`, apply the fresh bundle in its SQL Editor, and run `npm run verify:hosted -- --confirm`; the script creates synthetic users, checks RLS and the core workflow, and removes them. The implementation does not yet meet the PRD release gates; see `CONNECTIONS.md` and `RUNBOOK.md`.
 
 ## Status
 
@@ -24,7 +24,7 @@ The first migration was applied to the project during development. The subsequen
 
 ## Local verification
 
-Run `npm test`, `npm run test:db`, `npm run eval:baseline`, `npm run eval:retrieval`, `npm run lint`, and `npm run build`. The database check applies migrations to a disposable PGlite PostgreSQL-compatible database with simulated Supabase roles; it is not a test of the hosted Supabase instance, browser E2E, or production security. See `fixtures/README.md` for evaluation scope and limits.
+Run `npm test`, `npm run test:db`, `npm run test:bundle`, `npm run eval:baseline`, `npm run eval:retrieval`, `npm run lint`, and `npm run build`. The database check applies migrations to a disposable PGlite PostgreSQL-compatible database with simulated Supabase roles; it is not a test of the hosted Supabase instance, browser E2E, or production security. See `fixtures/README.md` for evaluation scope and limits.
 
 An independent loopback-only synthetic CRM with SQLite receipts is available in `sandbox-crm/`; see its README. Local HTTP tests exercise response loss and receipt recovery. A disabled worker path connects Relay actions to this service; hosted operation has not been verified.
 
