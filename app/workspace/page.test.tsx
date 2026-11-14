@@ -44,6 +44,12 @@ describe('workspace role presentation',()=>{
   vi.mocked(supabase).mockResolvedValue(fakeClient('operator',false,'approved','synthetic','queued') as never);
   expect(renderToStaticMarkup(await Workspace({searchParams:Promise.resolve({})}))).not.toContain('Retry background action');
  });
+ it('labels the shared synthetic demo and warns against real data',async()=>{
+  vi.stubEnv('RELAY_DEMO_EMAIL','test@example.invalid');
+  vi.mocked(supabase).mockResolvedValue(fakeClient('operator') as never);
+  const html=renderToStaticMarkup(await Workspace({searchParams:Promise.resolve({})}));
+  expect(html).toContain('Synthetic demo workspace');expect(html).toContain('Do not enter real customer data');
+ });
  it('fails closed if role lookup fails',async()=>{
   vi.mocked(supabase).mockResolvedValue(fakeClient(null,true) as never);
   const html=renderToStaticMarkup(await Workspace({searchParams:Promise.resolve({})}));expect(html).toContain('role could not be verified');expect(html).not.toContain('Approve exact change');
