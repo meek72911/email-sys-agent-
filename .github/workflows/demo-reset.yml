@@ -1,0 +1,54 @@
+name: Relay demo reset
+
+on:
+  schedule:
+    # 02:17 UTC daily. The shared demo is synthetic and disposable.
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: relay-demo-reset
+  cancel-in-progress: false
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Validate demo reset configuration
+        env:
+          RELAY_SUPABASE_URL: ${{ secrets.RELAY_SUPABASE_URL }}
+          RELAY_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.RELAY_SUPABASE_PUBLISHABLE_KEY }}
+          RELAY_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.RELAY_SUPABASE_SERVICE_ROLE_KEY }}
+          RELAY_DEMO_EMAIL: ${{ secrets.RELAY_DEMO_EMAIL }}
+          RELAY_DEMO_PASSWORD: ${{ secrets.RELAY_DEMO_PASSWORD }}
+        run: |
+          missing=0
+          for name in RELAY_SUPABASE_URL RELAY_SUPABASE_PUBLISHABLE_KEY RELAY_SUPABASE_SERVICE_ROLE_KEY RELAY_DEMO_EMAIL RELAY_DEMO_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is not configured as a repository secret."
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Reset shared synthetic demo workspace
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.RELAY_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.RELAY_SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.RELAY_SUPABASE_SERVICE_ROLE_KEY }}
+          RELAY_DEMO_EMAIL: ${{ secrets.RELAY_DEMO_EMAIL }}
+          RELAY_DEMO_PASSWORD: ${{ secrets.RELAY_DEMO_PASSWORD }}
+        run: npm run demo:reset -- --confirm

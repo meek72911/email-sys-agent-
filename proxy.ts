@@ -16,4 +16,4 @@ export async function proxy(request: NextRequest) {
   await client.auth.getClaims();
   return response;
 }
-export const config = { matcher: ['/workspace/:path*', '/login'] };
+export const config = { matcher: ['/workspace/:path*','/login','/cases/:path*','/knowledge/:path*','/activity/:path*','/search/:path*','/connections/:path*','/gmail/:path*','/settings/:path*'] };

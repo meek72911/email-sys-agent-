@@ -23,6 +23,13 @@ The first migration was applied to the project during development. The subsequen
 - Gmail MCP: read-only adapter and destination guard are prepared and tested with a synthetic MCP server. PKCE and encrypted credential-lifecycle helpers are prepared and locally tested; disabled-by-default owner OAuth and disconnect routes are implemented. Owner selection authorization and a plain-text import flow are implemented but disabled pending access review, verified retention and hosted integration tests.
 - A disabled Inngest queued worker and local sandbox REST/MCP layer are implemented; hosted provider wiring, hosted testing and deployment remain outstanding. A provisional scoped Zod override resolves the previously reported high-severity version finding, and a synthetic local Inngest execution passed; hosted worker compatibility remains unverified; see `CONNECTIONS.md`. A 50-case keyword baseline and a guarded live-extraction evaluation runner exist, but live-model evaluation and full end-to-end and security tests remain outstanding.
 
+## Portfolio and hosted verification
+
+- `docs/PORTFOLIO.md` — one-page case study and verified evidence.
+- `docs/DEMO_SCRIPT.md` — 4–6 minute walkthrough with captions.
+- `docs/HOSTED_VERIFICATION.md` — pending hosted schema/RLS checklist.
+- `.github/workflows/demo-reset.yml` — nightly shared-demo reset; requires repository secrets.
+
 ## Local verification
 
 Run `npm test`, `npm run test:db`, `npm run test:bundle`, `npm run eval:baseline`, `npm run eval:retrieval`, `npm run lint`, and `npm run build`. The database check applies migrations to a disposable PGlite PostgreSQL-compatible database with simulated Supabase roles; it is not a test of the hosted Supabase instance, browser E2E, or production security. See `fixtures/README.md` for evaluation scope and limits.
