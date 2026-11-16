@@ -25,6 +25,7 @@ The first migration was applied to the project during development. The subsequen
 
 ## Portfolio and hosted verification
 
+- `/` — public overview of the workflow, guardrails and limits; `/workspace` — the authenticated workspace.
 - `docs/PORTFOLIO.md` — one-page case study and verified evidence.
 - `docs/DEMO_SCRIPT.md` — 4–6 minute walkthrough with captions.
 - `docs/HOSTED_VERIFICATION.md` — pending hosted schema/RLS checklist.

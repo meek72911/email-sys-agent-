@@ -11,23 +11,24 @@
 - [ ] The synthetic-demo warning is visible.
 - [ ] The browser has no devtools, bookmarks, or personal tabs visible.
 - [ ] Notifications and password managers are disabled.
-- [ ] The recording starts on `/login`, not on a pre-authenticated tab.
+- [ ] The recording starts on `/` (the public overview), not on a pre-authenticated workspace tab.
 - [ ] AI is either live-verified or explicitly skipped in the narration.
 
 ## Scene plan
 
 | Time | On screen | Action | Narration / caption |
 |---|---|---|---|
-| 0:00–0:20 | Login page | Show the product name and the “Open synthetic demo” button. | “Relay is a customer-request review workspace. This is a shared synthetic demo — no real customer data.” |
-| 0:20–0:40 | Workspace inbox | Point out the 50-case inbox, status chips, and synthetic-demo banner. | “Every request is queued for a human decision. Nothing is sent automatically.” |
-| 0:40–1:10 | Case detail | Open “Invoice and login”. Show customer text, ticket status, draft, and audit area. | “Relay separates the customer’s claims from verified evidence. The customer message is untrusted input.” |
-| 1:10–1:40 | Filter/search | Use the recent-request filter, then open “Search all requests”. | “Recent filtering is local; workspace search is paged and backed by an RLS-scoped database function.” |
-| 1:40–2:20 | Draft review | Edit the draft, save it, approve it, and show the review state. | “The draft is saved first. Approval applies to the exact saved text and the current knowledge revision.” |
-| 2:20–2:50 | Copy guard | Try to copy after changing the draft without saving. | “A stale or edited draft cannot be copied as approved. This prevents accidental export.” |
-| 2:50–3:40 | Status workflow | Propose a status change, approve the exact change, execute it, and show the audit entry. | “The CRM here is a synthetic database workflow. The approver sees the exact from/to state; execution is idempotent.” |
-| 3:40–4:10 | Activity | Open Activity and point out proposal, approval, execution, and failure labels. | “Every state transition leaves an audit trail. Queued is not the same as succeeded.” |
-| 4:10–4:40 | Knowledge | Open Knowledge, search for a policy, show versioned evidence. | “Knowledge is workspace-scoped. Replacing a document invalidates older evidence.” |
-| 4:40–5:00 | Wrap-up | Return to the inbox. | “Relay is deliberately narrow: review, evidence, approval, audit. Gmail, background workers, and live AI remain gated until verified.” |
+| 0:00–0:25 | Public overview (`/`) | Show the hero and the annotated product preview; point to “Portfolio build · synthetic data only”. | “Relay turns a customer request into a sourced draft and a reviewed ticket change. The model can suggest; an operator decides.” |
+| 0:25–0:45 | Login page | Click “Open the synthetic demo”, then show the demo button and warning. | “This is a shared synthetic demo — no real customer data. Changes reset nightly.” |
+| 0:45–1:05 | Workspace inbox | Point out the 50-case inbox, status chips, and synthetic-demo banner. | “Every request is queued for a human decision. Nothing is sent automatically.” |
+| 1:05–1:35 | Case detail | Open “Invoice and login”. Show customer text, ticket status, draft, and audit area. | “Relay separates the customer’s claims from verified evidence. The customer message is untrusted input.” |
+| 1:35–2:05 | Filter/search | Use the recent-request filter, then open “Search all requests”. | “Recent filtering is local; workspace search is paged and backed by an RLS-scoped database function.” |
+| 2:05–2:45 | Draft review | Edit the draft, save it, approve it, and show the review state. | “The draft is saved first. Approval applies to the exact saved text and the current knowledge revision.” |
+| 2:45–3:15 | Copy guard | Try to copy after changing the draft without saving. | “A stale or edited draft cannot be copied as approved. This prevents accidental export.” |
+| 3:15–4:05 | Status workflow | Propose a status change, approve the exact change, execute it, and show the audit entry. | “The CRM here is a synthetic database workflow. The approver sees the exact from/to state; execution is idempotent.” |
+| 4:05–4:35 | Activity | Open Activity and point out proposal, approval, execution, and failure labels. | “Every state transition leaves an audit trail. Queued is not the same as succeeded.” |
+| 4:35–5:05 | Knowledge | Open Knowledge, search for a policy, show versioned evidence. | “Knowledge is workspace-scoped. Replacing a document invalidates older evidence.” |
+| 5:05–5:25 | Wrap-up | Return to the inbox, then the public overview. | “Relay is deliberately narrow: review, evidence, approval, audit. Gmail, background workers, and live AI remain gated until verified.” |
 
 ## Optional AI segment (only if live-verified)
 

@@ -1,36 +1,148 @@
+import type { Metadata } from 'next';
 import { connection } from 'next/server';
-import { redirect } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
-import { logout } from '@/app/login/actions';
-import Analysis from './analysis';
-import CaseList from './case-list';
-import CopyDraft from './copy-draft';
+import { z } from 'zod';
+import AppHeader from '@/app/ui/app-header';
 import { canOperate } from '@/lib/roles';
 import { isDemoEmail } from '@/lib/demo';
-import { jobFailureMessage,mayRetryJob } from '@/lib/job-status';
-import { z } from 'zod';
-import { createWorkspace, saveDraft, approveDraft, rejectDraft, deleteRequest, propose, approve, reject, execute, enqueueExecution, retryExecution, queueExternalSandbox, checkExternalSandbox } from './actions';
-type Action = { id:string; from_status:string; to_status:string; state:string; created_at:string };
-type ExternalDispatch = { id:string; state:string; sync_state:string; updated_at:string };
-type Job = { id:string; action_id:string; state:string; created_at:string; finished_at:string|null; failure_code:string|null };
-type Event = { id:number; event_type:string; created_at:string };
-type Evidence = { id:string; title:string; section:string; content:string; version:number };
-export default async function Workspace({searchParams}: {searchParams: Promise<{case?: string; error?: string; evidence?: string; deleted?: string}>}) {
- await connection();
- if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) redirect('/login');
- const client=await supabase(); const {data,error}=await client.auth.getUser(); if(error||!data.user) redirect('/login');
- const demoWorkspace=isDemoEmail(data.user.email);
- const {data:membership,error:membershipError}=await client.from('memberships').select('role').eq('user_id',data.user.id).maybeSingle();
- const canWrite=!membershipError && canOperate(membership?.role);
- const params=await searchParams;
- const result=await client.from('cases').select('id, customer, subject, message, created_at, ticket_status, draft, draft_review_state, draft_review_revision, organizations(knowledge_revision), source_kind, expires_at').order('created_at',{ascending:false}).limit(50);
- let cases=result.data??[]; let selected=cases.find(c=>c.id===params.case);
- if(!selected&&z.uuid().safeParse(params.case).success){const extra=await client.from('cases').select('id, customer, subject, message, created_at, ticket_status, draft, draft_review_state, draft_review_revision, organizations(knowledge_revision), source_kind, expires_at').eq('id',params.case).maybeSingle();if(!extra.error&&extra.data){selected=extra.data;cases=[extra.data,...cases.slice(0,49)];}}
- selected=selected??cases[0];
- const organization=Array.isArray(selected?.organizations)?selected.organizations[0]:selected?.organizations;
- let actions:Action[]=[]; let events:Event[]=[]; let jobs:Job[]=[]; let external:ExternalDispatch[]=[]; let detailsError=false;
- const evidenceQuery=(params.evidence ?? "").trim().slice(0,200); let evidence:Evidence[]=[]; let evidenceError=false;
- if(selected && evidenceQuery){const found=await client.rpc("relay_search_knowledge",{p_query:evidenceQuery}); evidence=found.data ?? []; evidenceError=!!found.error;}
- if(selected){const [a,e,j,x]=await Promise.all([client.from('crm_actions').select('id,from_status,to_status,state,created_at').eq('case_id',selected.id).order('created_at',{ascending:false}).limit(10),client.from('audit_events').select('id,event_type,created_at').eq('case_id',selected.id).order('created_at',{ascending:false}).limit(20),client.from('action_jobs').select('id,action_id,state,created_at,finished_at,failure_code').eq('case_id',selected.id).order('created_at',{ascending:false}).limit(10),client.from('external_dispatches').select('id,state,sync_state,updated_at').eq('case_id',selected.id).order('created_at',{ascending:false}).limit(10)]); actions=a.data??[];events=e.data??[];jobs=j.data??[];external=x.data??[];detailsError=!!(a.error||e.error||j.error||x.error);}
- return <main className="workspace"><header className="workspace-head"><strong className="brand">Relay</strong><nav aria-label="Workspace"><a href="/workspace">Inbox</a><a href="/knowledge">Knowledge</a><a href="/activity">Activity</a><a href="/connections">Connections</a><a href="/settings">Settings</a></nav><span>{demoWorkspace?'Synthetic demo workspace':data.user.email}</span><form action={logout}><button className="secondary">Sign out</button></form></header><div className="workspace-body"><aside aria-label="Inbox"><CaseList cases={cases} selectedId={selected?.id} canWrite={canWrite}/></aside><section className="case-detail">{demoWorkspace&&<p role="status">Synthetic demo workspace: changes are shared with other visitors and reset nightly. Do not enter real customer data.</p>}{params.deleted==='request'&&<p role="status">Request deleted.</p>}{result.error?<><h2>Workspace setup required</h2><p>The database schema is not available or is out of date. Apply the pending migrations.</p></>:cases.length===0?<><h2>Your workspace</h2>{params.deleted==='1'&&<p role="status">Workspace deleted.</p>}<p>Create an isolated workspace with synthetic examples.</p>{params.error&&<p role="alert">Workspace creation failed. Check that the migration is installed.</p>}<form action={createWorkspace}><button>Create workspace</button></form></>:selected&&<><div className="detail-kicker">Case review <span>·</span> {selected.source_kind==='gmail'?'Gmail import':selected.source_kind==='manual'?'Manual request':'Synthetic request'}</div><h2>{selected.subject}</h2><p className="detail-meta">{selected.customer} <span>·</span> Ticket {selected.id.slice(0,8)} <span>·</span> {selected.ticket_status}</p>{params.error&&<p role="alert">{params.error}</p>}{!canWrite&&<p role="status">{membershipError?'Your role could not be verified; editing is unavailable.':'Read-only access. You can inspect this case and its evidence.'}</p>}{selected.source_kind==='gmail'&&<p>Eligible for cleanup after {new Date(selected.expires_at).toUTCString()}; deletion depends on the configured retention worker.</p>}<article><h3>Original message</h3><p>{selected.message}</p></article><article><h3>Issue analysis and evidence</h3><Analysis key={selected.id} caseId={selected.id} configured={!!(process.env.OPENAI_API_KEY && process.env.OPENAI_MODEL)} canAnalyze={canWrite}/><p>Search workspace knowledge and review relevance yourself.</p><form method="get"><input type="hidden" name="case" value={selected.id}/><label htmlFor="evidence">Search knowledge</label><input id="evidence" name="evidence" maxLength={200} defaultValue={evidenceQuery}/><button>Find passages</button></form>{evidenceError?<p role="alert">Evidence search is unavailable. Check the knowledge migration.</p>:evidenceQuery?(evidence.length?evidence.map(d=><div className="action" key={d.id}><strong>{d.title}</strong><p>{d.section} · Version {d.version}</p><p>{d.content}</p><a href={"/knowledge#document-"+encodeURIComponent(d.id)}>Open source</a></div>):<p>No matching passages. Human investigation is required.</p>):null}</article><article><h3>Reply draft</h3><form action={saveDraft}><input type="hidden" name="caseId" value={selected.id}/><label htmlFor="draft">{canWrite?'Editable draft (never sent)':'Draft (read only)'}</label><textarea key={selected.id} id="draft" name="draft" rows={6} maxLength={5000} defaultValue={selected.draft} readOnly={!canWrite}/>{canWrite&&<><button>Save draft</button>{selected.draft.trim()&&<><button formAction={approveDraft} className="secondary">Approve saved draft</button><button formAction={rejectDraft} className="secondary">Reject saved draft</button></>}</>}</form><p>Review: {selected.draft_review_state==='unreviewed'?'Unreviewed':typeof organization?.knowledge_revision!=='number'?'Status unavailable':selected.draft_review_revision!==organization.knowledge_revision?'Out of date — knowledge changed':selected.draft_review_state}. Save edits before reviewing. No email is sent.</p>{canWrite&&selected.draft_review_state==='approved'&&typeof organization?.knowledge_revision==='number'&&selected.draft_review_revision===organization.knowledge_revision&&<CopyDraft key={selected.id} caseId={selected.id} savedDraft={selected.draft}/>}</article><article><h3>Sandbox ticket</h3><p>Ticket {selected.id.slice(0,8)} · Current status: <strong>{selected.ticket_status}</strong></p>{canWrite&&<form action={propose}><input type="hidden" name="caseId" value={selected.id}/><label htmlFor="status">Propose status</label><select key={selected.id+selected.ticket_status} name="status" id="status" defaultValue={selected.ticket_status==='pending'?'open':'pending'}><option value="open">Open</option><option value="pending">Pending</option><option value="resolved">Resolved</option></select><button>Review change</button></form>}<p>This sandbox update stays in Relay. No external CRM is connected.</p>{actions.map(a=><div className="action" key={a.id}><p>Ticket {selected.id.slice(0,8)} · <strong>{a.from_status} → {a.to_status}</strong> · {a.state.replaceAll('_',' ')}</p>{canWrite&&a.state==='needs_approval'&&<form action={approve}><input type="hidden" name="caseId" value={selected.id}/><input type="hidden" name="actionId" value={a.id}/><input type="hidden" name="from" value={a.from_status}/><input type="hidden" name="to" value={a.to_status}/><button>Approve exact change</button></form>}{canWrite&&a.state==='needs_approval'&&<form action={reject}><input type="hidden" name="caseId" value={selected.id}/><input type="hidden" name="actionId" value={a.id}/><input type="hidden" name="from" value={a.from_status}/><input type="hidden" name="to" value={a.to_status}/><button className="secondary">Reject change</button></form>}{jobs.filter(j=>j.action_id===a.id).map(j=><div key={j.id}><p>Background job: <strong>{j.state}</strong>{j.state==='queued'?' — awaiting a confirmed result.':''}</p><p>Queued <time dateTime={j.created_at}>{new Date(j.created_at).toUTCString()}</time>{j.finished_at&&<> · Finished <time dateTime={j.finished_at}>{new Date(j.finished_at).toUTCString()}</time></>}</p>{j.state==='failed'&&<p>{jobFailureMessage(j.failure_code)}</p>}{canWrite&&j.state==='failed'&&mayRetryJob(j.failure_code)&&a.state==='approved'&&jobs.find(other=>other.action_id===a.id)?.id===j.id&&!jobs.some(other=>other.action_id===a.id&&other.state==='queued')&&!external.some(d=>d.id===a.id)&&<form action={retryExecution}><input type="hidden" name="caseId" value={selected.id}/><input type="hidden" name="jobId" value={j.id}/><button className="secondary">Retry background action</button></form>}</div>)}{external.filter(d=>d.id===a.id).map(d=><div key={d.id}><p>Separate sandbox action: <strong>{d.state.replaceAll('_',' ')}</strong>{['dispatching','needs_reconciliation'].includes(d.state)?' — outcome not yet confirmed.':''}{d.state==='succeeded'&&d.sync_state==='conflict'?' — external update succeeded, but the local ticket differs and needs review.':''}</p>{canWrite&&['dispatching','needs_reconciliation'].includes(d.state)&&<form action={checkExternalSandbox}><input type="hidden" name="caseId" value={selected.id}/><input type="hidden" name="actionId" value={a.id}/><button className="secondary">Check sandbox result</button></form>}</div>)}{canWrite&&selected.source_kind==='synthetic'&&a.state==='approved'&&!external.some(d=>d.id===a.id)&&<form action={queueExternalSandbox}><input type="hidden" name="caseId" value={selected.id}/><input type="hidden" name="actionId" value={a.id}/><button className="secondary">Send to separate sandbox</button></form>}{canWrite&&a.state==='approved'&&!external.some(d=>d.id===a.id)&&<><form action={execute}><input type="hidden" name="caseId" value={selected.id}/><input type="hidden" name="actionId" value={a.id}/><button>Execute sandbox change now</button></form><form action={enqueueExecution}><input type="hidden" name="caseId" value={selected.id}/><input type="hidden" name="actionId" value={a.id}/><button className="secondary">Queue background execution</button></form></>}</div>)}</article><article><h3>Activity</h3>{detailsError?<p>Activity is unavailable; check the pending migration.</p>:events.length?events.map(e=><p key={e.id}>{e.event_type.replaceAll('_',' ')} · <time dateTime={e.created_at}>{new Date(e.created_at).toUTCString()}</time></p>):<p>No activity yet.</p>}</article>{!membershipError&&membership?.role==='owner'&&['manual','gmail'].includes(selected.source_kind)&&<article><h3>Delete request</h3><p>This removes the request, its draft and related actions from this workspace. A minimal deletion record remains. {selected.source_kind==='gmail'?'The original email remains in Gmail.':''}</p><form action={deleteRequest}><input type="hidden" name="caseId" value={selected.id}/><label htmlFor="delete-confirmation">Type DELETE to confirm</label><input id="delete-confirmation" name="confirmation" required pattern="DELETE" autoComplete="off"/><button className="secondary">Delete request</button></form></article>}<article><h3>Connections</h3><p>OpenAI: {process.env.OPENAI_API_KEY && process.env.OPENAI_MODEL ? 'configured, unverified' : 'not configured'} · Gmail MCP: see Connections · Sandbox CRM: local database simulation</p></article></>}</section></div></main>;
+import { requireUser } from '@/lib/session';
+import CaseList from './case-list';
+import CaseDetail from './case-detail';
+import { createWorkspace } from './actions';
+import type { ActionRow, CaseRecord, EventRow, EvidenceRow, ExternalRow, JobRow } from './types';
+
+export const metadata: Metadata = { title: 'Inbox' };
+
+const CASE_FIELDS = 'id, customer, subject, message, created_at, ticket_status, draft, draft_review_state, draft_review_revision, organizations(knowledge_revision), source_kind, expires_at';
+
+export default async function Workspace({
+  searchParams,
+}: {
+  searchParams: Promise<{ case?: string; error?: string; evidence?: string; deleted?: string }>;
+}) {
+  await connection();
+  const { client, user } = await requireUser();
+  const demoWorkspace = isDemoEmail(user.email);
+
+  const { data: membership, error: membershipError } = await client
+    .from('memberships')
+    .select('role')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const canWrite = !membershipError && canOperate(membership?.role);
+
+  const params = await searchParams;
+  const result = await client
+    .from('cases')
+    .select(CASE_FIELDS)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  let cases = (result.data ?? []) as CaseRecord[];
+  let selected = cases.find(item => item.id === params.case);
+
+  if (!selected && z.uuid().safeParse(params.case).success) {
+    const extra = await client
+      .from('cases')
+      .select(CASE_FIELDS)
+      .eq('id', params.case)
+      .maybeSingle();
+    if (!extra.error && extra.data) {
+      selected = extra.data as CaseRecord;
+      cases = [selected, ...cases.slice(0, 49)];
+    }
+  }
+  selected = selected ?? cases[0];
+
+  let actions: ActionRow[] = [];
+  let events: EventRow[] = [];
+  let jobs: JobRow[] = [];
+  let external: ExternalRow[] = [];
+  let detailsError = false;
+
+  const evidenceQuery = (params.evidence ?? '').trim().slice(0, 200);
+  let evidence: EvidenceRow[] = [];
+  let evidenceError = false;
+
+  if (selected && evidenceQuery) {
+    const found = await client.rpc('relay_search_knowledge', { p_query: evidenceQuery });
+    evidence = (found.data ?? []) as EvidenceRow[];
+    evidenceError = !!found.error;
+  }
+
+  if (selected) {
+    const [actionResult, eventResult, jobResult, externalResult] = await Promise.all([
+      client.from('crm_actions').select('id,from_status,to_status,state,created_at').eq('case_id', selected.id).order('created_at', { ascending: false }).limit(10),
+      client.from('audit_events').select('id,event_type,created_at').eq('case_id', selected.id).order('created_at', { ascending: false }).limit(20),
+      client.from('action_jobs').select('id,action_id,state,created_at,finished_at,failure_code').eq('case_id', selected.id).order('created_at', { ascending: false }).limit(10),
+      client.from('external_dispatches').select('id,state,sync_state,updated_at').eq('case_id', selected.id).order('created_at', { ascending: false }).limit(10),
+    ]);
+    actions = (actionResult.data ?? []) as ActionRow[];
+    events = (eventResult.data ?? []) as EventRow[];
+    jobs = (jobResult.data ?? []) as JobRow[];
+    external = (externalResult.data ?? []) as ExternalRow[];
+    detailsError = !!(actionResult.error || eventResult.error || jobResult.error || externalResult.error);
+  }
+
+  return (
+    <div className="app-frame">
+      <AppHeader current="/workspace" email={user.email} demo={demoWorkspace} />
+      <main className="workspace" id="main">
+        <aside className="workspace-inbox" aria-label="Inbox">
+          <CaseList cases={cases} selectedId={selected?.id} canWrite={canWrite} />
+        </aside>
+
+        <section className="case-detail" id="case-detail" aria-label="Case detail">
+          {demoWorkspace && (
+            <p className="notice notice-demo" role="status">
+              <strong>Synthetic demo workspace:</strong> changes are shared with other visitors and reset nightly. Do not enter real customer data.
+            </p>
+          )}
+          {params.deleted === 'request' && <p className="notice" role="status">Request deleted.</p>}
+
+          {result.error
+            ? (
+              <div className="state-card">
+                <p className="card-index">Setup</p>
+                <h2>Workspace setup required</h2>
+                <p>The database schema is not available or is out of date. Apply the pending migrations.</p>
+              </div>
+            )
+            : cases.length === 0
+              ? (
+                <div className="state-card state-empty">
+                  <p className="card-index">Start here</p>
+                  <h2>Your workspace</h2>
+                  {params.deleted === '1' && <p role="status">Workspace deleted.</p>}
+                  <p>Create an isolated workspace with synthetic examples.</p>
+                  {params.error && (
+                    <p role="alert">Workspace creation failed. Check that the migration is installed.</p>
+                  )}
+                  <form action={createWorkspace}>
+                    <button>Create workspace</button>
+                  </form>
+                </div>
+              )
+              : selected
+                ? (
+                  <CaseDetail
+                    caseRecord={selected}
+                    actions={actions}
+                    events={events}
+                    jobs={jobs}
+                    external={external}
+                    evidence={evidence}
+                    evidenceQuery={evidenceQuery}
+                    evidenceError={evidenceError}
+                    detailsError={detailsError}
+                    canWrite={canWrite}
+                    membershipError={!!membershipError}
+                    role={membership?.role ?? null}
+                    error={params.error}
+                  />
+                )
+                : null}
+        </section>
+      </main>
+    </div>
+  );
 }

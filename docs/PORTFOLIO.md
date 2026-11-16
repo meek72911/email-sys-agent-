@@ -26,7 +26,7 @@ Relay makes that middle visible:
 
 | Layer | Implementation |
 |---|---|
-| UI | Next.js 16 App Router, server-rendered workspace, inbox, case detail, knowledge, activity, connections, settings |
+| UI | Next.js 16 App Router, public overview, server-rendered workspace, inbox, case detail, knowledge, activity, connections, settings |
 | Auth | Supabase email/password sessions; optional server-only shared demo login |
 | Data | Supabase Postgres with RLS and `SECURITY DEFINER` RPC boundaries; 25 migrations |
 | Workflow | Draft save/review, exact-payload status approval, idempotent execution, bounded job failure codes |
@@ -51,7 +51,7 @@ See `RUNBOOK.md` for the full data-flow and trust boundaries.
 
 ## Verified evidence
 
-Local checks that passed on 14–15 Nov 2026:
+Local checks that passed on 14–16 Nov 2026:
 
 | Check | Result |
 |---|---|

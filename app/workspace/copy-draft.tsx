@@ -10,5 +10,5 @@ export default function CopyDraft({caseId,savedDraft}:{caseId:string;savedDraft:
   try{const result=await getApprovedDraft(caseId,savedDraft);if(!result.ok){setMessage('Draft or knowledge changed. Refresh and review again.');return;}if(field.value!==savedDraft){setMessage('Save and review your edits before copying.');return;}if(!navigator.clipboard?.writeText){setMessage('Clipboard unavailable. Select and copy the draft manually.');return;}await navigator.clipboard.writeText(result.draft);setMessage('Draft copied. Paste it into your email and review before sending.');}
   catch{setMessage('Could not copy. Check clipboard permission and try again.');}finally{setBusy(false);}
  }
- return <div><button type="button" className="secondary" onClick={copy} disabled={busy}>{busy?'Checking draft…':'Copy approved draft'}</button>{message&&<p role="status">{message}</p>}</div>;
+ return <div className="copy-draft"><button type="button" className="secondary" onClick={copy} disabled={busy}>{busy?'Checking draft…':'Copy approved draft'}</button>{message&&<p role="status">{message}</p>}</div>;
 }
