@@ -1,6 +1,8 @@
-# Relay MVP (in progress)
+# Relay
 
-Relay is a customer-operations project. The hosted MVP is incomplete and must not be deployed or used with real customer data. The old local prototype is in the parent directory.
+[![Relay checks](https://github.com/meek72911/email-sys-agent-/actions/workflows/checks.yml/badge.svg)](https://github.com/meek72911/email-sys-agent-/actions/workflows/checks.yml)
+
+Relay is a customer-operations workspace for reviewing inbound requests with sourced drafts, explicit approvals, an idempotent sandbox ticket, and an audit trail. This is a portfolio build with synthetic data; hosted verification is pending and it must not be used with real customer data. The old local prototype is in the parent directory.
 
 ## Local setup
 
